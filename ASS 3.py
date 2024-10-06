@@ -1,0 +1,109 @@
+Python 3.12.3 (tags/v3.12.3:f6650f9, Apr  9 2024, 14:05:25) [MSC v.1938 64 bit (AMD64)] on win32
+Type "help", "copyright", "credits" or "license()" for more information.
+>>> import unittest
+... import numpy as np
+... import time
+... import tracemalloc
+... 
+... 
+... def gram_schmidt(A):
+...     """
+...     Orthogonalize matrix A using the Gram-Schmidt process.
+...     """
+...     (rows, cols) = A.shape
+...     Q = np.zeros((rows, cols))  # Initialize an empty matrix Q
+...     for j in range(cols):
+...         v = A[:, j]  # Take the j-th column vector of A
+...         # Subtract the projections of v onto the previously calculated orthogonal vectors
+...         for i in range(j):
+...             v = v - np.dot(Q[:, i], v) * Q[:, i]
+...         norm_v = np.linalg.norm(v)
+...         if norm_v > 1e-10:  # Check to avoid division by zero or very small norms
+...             Q[:, j] = v / norm_v
+...         else:
+...             Q[:, j] = v  # If norm is close to zero, just assign v
+...     return Q
+... 
+... 
+... def householder_reflection(A):
+...     """
+...     Orthogonalize matrix A using Householder reflections.
+...     """
+...     (rows, cols) = A.shape
+...     Q = np.eye(rows)  # Initialize Q as an identity matrix
+...     R = A.copy()  # Copy matrix A to modify it
+...     for i in range(cols):
+...         x = R[i:, i]  # Extract the i-th column from the i-th row onwards
+...         e = np.zeros_like(x)
+...         e[0] = np.linalg.norm(x)  # Create the reflection vector
+...         u = x - e
+...         norm_u = np.linalg.norm(u)
+...         # Check if the norm is significant, otherwise skip the transformation
+...         if norm_u > 1e-10:
+...             v = u / norm_u  # Normalize the reflection vector
+...             Q_i = np.eye(rows)  # Initialize Q_i as an identity matrix
+...             Q_i[i:, i:] -= 2.0 * np.outer(v, v)  # Apply the Householder transformation
+...             R = Q_i @ R  # Update R with the transformation
+...             Q = Q @ Q_i  # Update Q with the transformation
+    return Q
+
+
+def timed_algorithm(algorithm, A):
+    """
+    Measures execution time and memory usage of the given algorithm.
+    """
+    start_time = time.time()  # Record the start time
+    tracemalloc.start()  # Start tracking memory usage
+    result = algorithm(A)  # Execute the algorithm
+    current, peak = tracemalloc.get_traced_memory()  # Get memory usage
+    tracemalloc.stop()  # Stop tracking memory
+    end_time = time.time()  # Record the end time
+    return result, end_time - start_time, current, peak  # Return the result and performance metrics
+
+
+class TestOrthogonalization(unittest.TestCase):
+    """
+    Unit tests for the orthogonalization algorithms.
+    Methods:
+    - test_gram_schmidt: Test the Gram-Schmidt process for correctness and performance.
+    - test_householder_reflection: Test the Householder reflection process for correctness and performance.
+    """
+
+    def setUp(self):
+        """
+        Set up a sample matrix for testing.
+        This method is executed before each test case.
+        """
+        self.matrix = np.array([[1.0, 1.0, 1.0],
+                                [0.0, 1.0, 2.0],
+                                [0.0, 0.0, 3.0]])  # Example matrix to test with
+
+    def test_gram_schmidt(self):
+        """
+        Test Gram-Schmidt orthogonalization.
+        This test checks the result of the Gram-Schmidt against NumPy's QR decomposition for correctness.
+        It also prints the time and memory usage for performance analysis.
+        """
+        result, time_taken, current_mem, peak_mem = timed_algorithm(gram_schmidt, self.matrix)
+        expected = np.linalg.qr(self.matrix)[0]  # Use NumPy's QR decomposition as the expected result
+        print(f"Gram-Schmidt Result:\n{result}")
+        print(f"Expected (QR) Result:\n{expected}")
+        np.testing.assert_almost_equal(result, expected, decimal=5)  # Validate the result with a precision of 5 decimals
+        print(f"Gram-Schmidt time: {time_taken}s, Memory: {peak_mem} bytes")  # Output the performance data
+
+    def test_householder_reflection(self):
+        """
+        Test Householder reflection orthogonalization.
+        This test checks the result of the Householder reflection against NumPy's QR decomposition for correctness.
+        It also prints the time and memory usage for performance analysis.
+        """
+        result, time_taken, current_mem, peak_mem = timed_algorithm(householder_reflection, self.matrix)
+        expected = np.linalg.qr(self.matrix)[0]  # Use NumPy's QR decomposition as the expected result
+        print(f"Householder Reflection Result:\n{result}")
+        print(f"Expected (QR) Result:\n{expected}")
+        np.testing.assert_almost_equal(result, expected, decimal=5)  # Validate the result with a precision of 5 decimals
+        print(f"Householder reflection time: {time_taken}s, Memory: {peak_mem} bytes")  # Output the performance data
+
+
+if __name__ == '__main__':
+    unittest.main(argv=['first-arg-is-ignored'], exit=False)  # Run the unit tests when the script is executed
